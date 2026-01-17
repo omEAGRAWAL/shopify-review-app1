@@ -43,22 +43,9 @@ app.get('/', (req, res) => {
     const { shop, host } = req.query;
 
     if (shop) {
-        // OAuth completed - redirect to frontend in development
-        if (process.env.NODE_ENV !== 'production') {
-            return res.redirect(`http://localhost:3000/?shop=${shop}&host=${host || ''}`);
-        }
-        // In production, serve the app
-        return res.send(`
-            <!DOCTYPE html>
-            <html>
-            <head><title>Review Incentive App</title></head>
-            <body>
-                <h1>✅ App Installed Successfully!</h1>
-                <p>Shop: ${shop}</p>
-                <p><a href="/api/products?shop=${shop}">View Products</a></p>
-            </body>
-            </html>
-        `);
+        // Redirect to frontend app
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        return res.redirect(`${frontendUrl}/?shop=${shop}&host=${host || ''}`);
     }
 
     res.json({
