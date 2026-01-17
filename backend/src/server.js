@@ -18,9 +18,7 @@ connectDB();
 
 // Middleware
 app.use(cors({
-    origin: process.env.NODE_ENV === 'production'
-        ? [process.env.SHOPIFY_APP_URL, process.env.PUBLIC_FORM_URL]
-        : '*',
+    origin: '*',
     credentials: true,
 }));
 
