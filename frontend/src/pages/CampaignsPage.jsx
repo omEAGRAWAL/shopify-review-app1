@@ -29,6 +29,7 @@ import {
     LinkIcon,
     DeleteIcon,
     PlusIcon,
+    ShopcodesIcon,
 } from '@shopify/polaris-icons';
 import {
     fetchCampaigns,
@@ -37,6 +38,7 @@ import {
     fetchPromos,
     fetchProducts
 } from '../services/api';
+import { QRCodeCanvas } from 'qrcode.react';
 
 function CampaignsPage() {
     const [campaigns, setCampaigns] = useState([]);
@@ -53,6 +55,8 @@ function CampaignsPage() {
     const [success, setSuccess] = useState(null);
     const [saving, setSaving] = useState(false);
     const [deletingId, setDeletingId] = useState(null);
+    const [qrModalOpen, setQrModalOpen] = useState(false);
+    const [selectedCampaignForQr, setSelectedCampaignForQr] = useState(null);
 
     useEffect(() => {
         loadData();
@@ -116,10 +120,28 @@ function CampaignsPage() {
     }, []);
 
     const copyPublicUrl = (publicUrl) => {
-        const url = `${process.env.NEXT_PUBLIC_APP_URL}/review/${publicUrl}`;
+        const url = `${import.meta.env.VITE_APP_URL}/review/${publicUrl}`;
         navigator.clipboard.writeText(url);
         setSuccess('Review form URL copied to clipboard!');
         setTimeout(() => setSuccess(null), 3000);
+    };
+
+    const handleOpenQrModal = (campaign) => {
+        setSelectedCampaignForQr(campaign);
+        setQrModalOpen(true);
+    };
+
+    const downloadQRCode = (format) => {
+        const canvas = document.getElementById('qr-code-canvas');
+        if (!canvas) return;
+
+        const url = canvas.toDataURL(`image/${format}`);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `campaign-qr-${selectedCampaignForQr.name}.${format}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const handleProductToggle = useCallback((productId) => {
@@ -265,6 +287,15 @@ function CampaignsPage() {
                                                             </InlineStack>
                                                         </BlockStack>
                                                         <ButtonGroup>
+                                                            <Tooltip content="Show QR Code">
+                                                                <Button
+                                                                    size="slim"
+                                                                    icon={ShopcodesIcon}
+                                                                    onClick={() => handleOpenQrModal(item)}
+                                                                >
+                                                                    QR Code
+                                                                </Button>
+                                                            </Tooltip>
                                                             <Tooltip content="Copy review form link">
                                                                 <Button
                                                                     size="slim"
@@ -409,6 +440,46 @@ function CampaignsPage() {
                             )}
                         </BlockStack>
                     </BlockStack>
+                </Modal.Section>
+            </Modal>
+
+            {/* QR Code Modal */}
+            <Modal
+                open={qrModalOpen}
+                onClose={() => setQrModalOpen(false)}
+                title="Campaign QR Code"
+                secondaryActions={[
+                    {
+                        content: 'Close',
+                        onAction: () => setQrModalOpen(false),
+                    },
+                ]}
+            >
+                <Modal.Section>
+                    {selectedCampaignForQr && (
+                        <BlockStack gap="400" align="center">
+                            <Box padding="400">
+                                <BlockStack gap="400" align="center" inlineAlign="center">
+                                    <Text as="p" variant="bodyMd">
+                                        Scan to view review form for <strong>{selectedCampaignForQr.name}</strong>
+                                    </Text>
+                                    <div style={{ background: 'white', padding: '16px', borderRadius: '8px', border: '1px solid #dfe3e8', display: 'flex', justifyContent: 'center' }}>
+                                        <QRCodeCanvas
+                                            id="qr-code-canvas"
+                                            value={`${import.meta.env.VITE_APP_URL}/review/${selectedCampaignForQr.publicUrl}`}
+                                            size={256}
+                                            level={"H"}
+                                            includeMargin={true}
+                                        />
+                                    </div>
+                                    <ButtonGroup>
+                                        <Button onClick={() => downloadQRCode('png')}>Download PNG</Button>
+                                        <Button onClick={() => downloadQRCode('jpeg')}>Download JPG</Button>
+                                    </ButtonGroup>
+                                </BlockStack>
+                            </Box>
+                        </BlockStack>
+                    )}
                 </Modal.Section>
             </Modal>
         </Page>

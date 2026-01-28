@@ -17,6 +17,7 @@
     "@shopify/app-bridge-react": "^4.2.8",
     "@shopify/polaris": "^13.9.5",
     "axios": "^1.13.2",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-router-dom": "^7.12.0"
