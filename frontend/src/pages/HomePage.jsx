@@ -1,8 +1,8 @@
 import { Page, Layout, Card, Text, BlockStack, Spinner, Box, InlineStack, Banner, Button, Divider } from '@shopify/polaris';
 import { useEffect, useState } from 'react';
 import {
-    CampaignIcon,
-    StarFilledIcon,
+    MegaphoneIcon,
+    StarIcon,
     DiscountIcon,
     CheckCircleIcon,
     ClockIcon,
@@ -284,7 +284,7 @@ function HomePage() {
                                             title="Total Campaigns"
                                             value={stats.campaigns}
                                             subtitle={`${stats.activeCampaigns} active`}
-                                            icon={<CampaignIcon />}
+                                            icon={<MegaphoneIcon />}
                                         />
                                     </Box>
                                     <Box minWidth="200px">
@@ -292,7 +292,7 @@ function HomePage() {
                                             title="Total Reviews"
                                             value={stats.reviews}
                                             subtitle={stats.pendingReviews > 0 ? `${stats.pendingReviews} pending approval` : 'All caught up!'}
-                                            icon={<StarFilledIcon />}
+                                            icon={<StarIcon />}
                                             tone="warning"
                                         />
                                     </Box>
@@ -310,7 +310,7 @@ function HomePage() {
                                             title="Average Rating"
                                             value={stats.averageRating}
                                             subtitle={stats.reviews > 0 ? `Based on ${stats.reviews} review${stats.reviews !== 1 ? 's' : ''}` : 'No reviews yet'}
-                                            icon={<StarFilledIcon />}
+                                            icon={<StarIcon />}
                                             tone="warning"
                                         />
                                     </Box>
