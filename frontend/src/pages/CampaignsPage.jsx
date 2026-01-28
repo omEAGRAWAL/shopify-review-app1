@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
     Page,
     Layout,
-    LegacyCard,
+    Card,
     ResourceList,
     ResourceItem,
     Text,
@@ -15,7 +15,21 @@ import {
     Badge,
     Banner,
     ButtonGroup,
+    EmptyState,
+    Box,
+    InlineStack,
+    BlockStack,
+    Divider,
+    Thumbnail,
+    Checkbox,
+    Icon,
+    Tooltip,
 } from '@shopify/polaris';
+import {
+    LinkIcon,
+    DeleteIcon,
+    PlusIcon,
+} from '@shopify/polaris-icons';
 import {
     fetchCampaigns,
     createCampaign,
@@ -36,7 +50,9 @@ function CampaignsPage() {
         productIds: [],
     });
     const [error, setError] = useState(null);
+    const [success, setSuccess] = useState(null);
     const [saving, setSaving] = useState(false);
+    const [deletingId, setDeletingId] = useState(null);
 
     useEffect(() => {
         loadData();
@@ -45,6 +61,7 @@ function CampaignsPage() {
     const loadData = async () => {
         try {
             setLoading(true);
+            setError(null);
             const [campaignsRes, promosRes, productsRes] = await Promise.all([
                 fetchCampaigns(),
                 fetchPromos(),
@@ -54,7 +71,7 @@ function CampaignsPage() {
             setPromos(promosRes.data.promos || []);
             setProducts(productsRes.data.products || []);
         } catch (err) {
-            setError('Failed to load data.');
+            setError('Failed to load data. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -63,24 +80,33 @@ function CampaignsPage() {
     const handleSubmit = async () => {
         try {
             setSaving(true);
+            setError(null);
             await createCampaign(formData);
             setModalOpen(false);
             setFormData({ name: '', promoId: '', productIds: [] });
+            setSuccess('Campaign created successfully!');
+            setTimeout(() => setSuccess(null), 3000);
             loadData();
         } catch (err) {
-            setError('Failed to create campaign.');
+            setError('Failed to create campaign. Please try again.');
         } finally {
             setSaving(false);
         }
     };
 
     const handleDelete = async (id) => {
-        if (confirm('Are you sure you want to delete this campaign?')) {
+        if (confirm('Are you sure you want to delete this campaign? This action cannot be undone.')) {
             try {
+                setDeletingId(id);
+                setError(null);
                 await deleteCampaign(id);
+                setSuccess('Campaign deleted successfully!');
+                setTimeout(() => setSuccess(null), 3000);
                 loadData();
             } catch (err) {
-                setError('Failed to delete campaign.');
+                setError('Failed to delete campaign. Please try again.');
+            } finally {
+                setDeletingId(null);
             }
         }
     };
@@ -90,17 +116,34 @@ function CampaignsPage() {
     }, []);
 
     const copyPublicUrl = (publicUrl) => {
-        const url = `${window.location.origin}/review/${publicUrl}`;
+        const url = `${process.env.NEXT_PUBLIC_APP_URL}/review/${publicUrl}`;
         navigator.clipboard.writeText(url);
-        alert('Review form URL copied to clipboard!');
+        setSuccess('Review form URL copied to clipboard!');
+        setTimeout(() => setSuccess(null), 3000);
+    };
+
+    const handleProductToggle = useCallback((productId) => {
+        setFormData(prev => ({
+            ...prev,
+            productIds: prev.productIds.includes(productId)
+                ? prev.productIds.filter(id => id !== productId)
+                : [...prev.productIds, productId]
+        }));
+    }, []);
+
+    const handleModalClose = () => {
+        setModalOpen(false);
+        setFormData({ name: '', promoId: '', productIds: [] });
     };
 
     if (loading) {
         return (
             <Page title="Campaigns">
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
-                    <Spinner size="large" />
-                </div>
+                <Box paddingBlockStart="800" paddingBlockEnd="800">
+                    <InlineStack align="center" blockAlign="center">
+                        <Spinner size="large" />
+                    </InlineStack>
+                </Box>
             </Page>
         );
     }
@@ -110,174 +153,262 @@ function CampaignsPage() {
         value: p._id,
     }));
 
+    const isFormValid = formData.name.trim() && formData.promoId;
+
     return (
         <Page
             title="Campaigns"
-            primaryAction={{
-                content: 'Create Campaign',
-                onAction: () => setModalOpen(true),
-                disabled: promos.length === 0,
-            }}
+            subtitle="Create and manage your review collection campaigns"
+            primaryAction={
+                promos.length > 0
+                    ? {
+                        content: 'Create Campaign',
+                        onAction: () => setModalOpen(true),
+                        icon: PlusIcon,
+                    }
+                    : undefined
+            }
         >
             <Layout>
-                {error && (
+                {/* Success Banner */}
+                {success && (
                     <Layout.Section>
-                        <Banner status="critical" onDismiss={() => setError(null)}>
-                            {error}
+                        <Banner
+                            status="success"
+                            onDismiss={() => setSuccess(null)}
+                        >
+                            <p>{success}</p>
                         </Banner>
                     </Layout.Section>
                 )}
+
+                {/* Error Banner */}
+                {error && (
+                    <Layout.Section>
+                        <Banner
+                            status="critical"
+                            onDismiss={() => setError(null)}
+                        >
+                            <p>{error}</p>
+                        </Banner>
+                    </Layout.Section>
+                )}
+
+                {/* Info Banner - No Promos */}
                 {promos.length === 0 && (
                     <Layout.Section>
                         <Banner status="info">
-                            Create a promo first before creating campaigns.
+                            <p>
+                                You need to create at least one promo before you can create campaigns.
+                                Visit the Promos page to get started.
+                            </p>
                         </Banner>
                     </Layout.Section>
                 )}
+
+                {/* Campaigns List */}
                 <Layout.Section>
-                    <LegacyCard>
-                        <ResourceList
-                            resourceName={{ singular: 'campaign', plural: 'campaigns' }}
-                            items={campaigns}
-                            renderItem={(item) => {
-                                const { _id, name, status, promo, publicUrl } = item;
-                                return (
-                                    <ResourceItem
-                                        id={_id}
-                                        accessibilityLabel={`View details for ${name}`}
-                                    >
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <div>
-                                                <Text variant="bodyMd" fontWeight="bold" as="h3">
-                                                    {name}
-                                                </Text>
-                                                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                                                    <Badge status={status === 'active' ? 'success' : 'warning'}>
-                                                        {status}
-                                                    </Badge>
-                                                    {promo && (
-                                                        <Text as="span" color="subdued">
-                                                            Promo: {promo.name}
-                                                        </Text>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <ButtonGroup>
-                                                <Button size="slim" onClick={() => copyPublicUrl(publicUrl)}>
-                                                    Copy Link
-                                                </Button>
-                                                <Button size="slim" destructive onClick={() => handleDelete(_id)}>
-                                                    Delete
-                                                </Button>
-                                            </ButtonGroup>
-                                        </div>
-                                    </ResourceItem>
-                                );
-                            }}
-                            emptyState={
-                                <div style={{ padding: '20px', textAlign: 'center' }}>
-                                    <Text as="p" color="subdued">
-                                        No campaigns yet. Create your first campaign!
-                                    </Text>
-                                </div>
-                            }
-                        />
-                    </LegacyCard>
+                    <Card padding="0">
+                        {campaigns.length === 0 ? (
+                            <EmptyState
+                                heading="Create your first campaign"
+                                action={
+                                    promos.length > 0
+                                        ? {
+                                            content: 'Create Campaign',
+                                            onAction: () => setModalOpen(true),
+                                        }
+                                        : undefined
+                                }
+                                image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                            >
+                                <p>
+                                    Campaigns help you collect reviews for specific products and reward customers with promos.
+                                </p>
+                            </EmptyState>
+                        ) : (
+                            <ResourceList
+                                resourceName={{ singular: 'campaign', plural: 'campaigns' }}
+                                items={campaigns}
+                                renderItem={(item) => {
+                                    const { _id, name, status, promo, publicUrl, productIds = [] } = item;
+                                    const isDeleting = deletingId === _id;
+
+                                    return (
+                                        <ResourceItem
+                                            id={_id}
+                                            accessibilityLabel={`View details for ${name}`}
+                                        >
+                                            <Box padding="400">
+                                                <BlockStack gap="300">
+                                                    <InlineStack align="space-between" blockAlign="center">
+                                                        <BlockStack gap="200">
+                                                            <Text variant="headingMd" as="h3" fontWeight="semibold">
+                                                                {name}
+                                                            </Text>
+                                                            <InlineStack gap="200" wrap={false}>
+                                                                <Badge
+                                                                    tone={status === 'active' ? 'success' : 'attention'}
+                                                                >
+                                                                    {status === 'active' ? 'Active' : 'Inactive'}
+                                                                </Badge>
+                                                                {promo && (
+                                                                    <Text as="span" tone="subdued" variant="bodySm">
+                                                                        Promo: {promo.name}
+                                                                    </Text>
+                                                                )}
+                                                                {productIds.length > 0 && (
+                                                                    <Text as="span" tone="subdued" variant="bodySm">
+                                                                        • {productIds.length} product{productIds.length !== 1 ? 's' : ''}
+                                                                    </Text>
+                                                                )}
+                                                            </InlineStack>
+                                                        </BlockStack>
+                                                        <ButtonGroup>
+                                                            <Tooltip content="Copy review form link">
+                                                                <Button
+                                                                    size="slim"
+                                                                    icon={LinkIcon}
+                                                                    onClick={() => copyPublicUrl(publicUrl)}
+                                                                >
+                                                                    Copy Link
+                                                                </Button>
+                                                            </Tooltip>
+                                                            <Button
+                                                                size="slim"
+                                                                tone="critical"
+                                                                icon={DeleteIcon}
+                                                                onClick={() => handleDelete(_id)}
+                                                                loading={isDeleting}
+                                                                disabled={isDeleting}
+                                                            >
+                                                                Delete
+                                                            </Button>
+                                                        </ButtonGroup>
+                                                    </InlineStack>
+                                                </BlockStack>
+                                            </Box>
+                                        </ResourceItem>
+                                    );
+                                }}
+                            />
+                        )}
+                    </Card>
                 </Layout.Section>
             </Layout>
 
+            {/* Create Campaign Modal */}
             <Modal
                 open={modalOpen}
-                onClose={() => setModalOpen(false)}
+                onClose={handleModalClose}
                 title="Create Campaign"
                 primaryAction={{
-                    content: 'Create',
+                    content: 'Create Campaign',
                     onAction: handleSubmit,
                     loading: saving,
-                    disabled: !formData.name || !formData.promoId,
+                    disabled: !isFormValid || saving,
                 }}
                 secondaryActions={[
-                    { content: 'Cancel', onAction: () => setModalOpen(false) },
+                    {
+                        content: 'Cancel',
+                        onAction: handleModalClose,
+                        disabled: saving,
+                    },
                 ]}
             >
                 <Modal.Section>
-                    <FormLayout>
-                        <TextField
-                            label="Campaign Name"
-                            value={formData.name}
-                            onChange={handleChange('name')}
-                            autoComplete="off"
-                        />
-                        <Select
-                            label="Promo to Award"
-                            options={[{ label: 'Select a promo', value: '' }, ...promoOptions]}
-                            value={formData.promoId}
-                            onChange={handleChange('promoId')}
-                        />
-                        <div>
-                            <Text variant="bodyMd" fontWeight="semibold" as="p">
-                                Select Products for this Campaign
+                    <BlockStack gap="400">
+                        <FormLayout>
+                            <TextField
+                                label="Campaign Name"
+                                value={formData.name}
+                                onChange={handleChange('name')}
+                                autoComplete="off"
+                                placeholder="e.g., Summer Product Reviews"
+                                helpText="Choose a descriptive name for your campaign"
+                                maxLength={100}
+                                showCharacterCount
+                            />
+                            <Select
+                                label="Promo to Award"
+                                options={[
+                                    { label: 'Select a promo', value: '' },
+                                    ...promoOptions,
+                                ]}
+                                value={formData.promoId}
+                                onChange={handleChange('promoId')}
+                                helpText="Customers will receive this promo after submitting a review"
+                            />
+                        </FormLayout>
+
+                        <Divider />
+
+                        {/* Product Selection */}
+                        <BlockStack gap="300">
+                            <Text variant="headingSm" as="h4" fontWeight="semibold">
+                                Select Products
                             </Text>
-                            <div style={{
-                                maxHeight: '200px',
-                                overflowY: 'auto',
-                                border: '1px solid #ddd',
-                                borderRadius: '8px',
-                                padding: '8px',
-                                marginTop: '8px'
-                            }}>
-                                {products.length === 0 ? (
-                                    <Text as="p" color="subdued">No products available</Text>
-                                ) : (
-                                    products.map((product) => (
-                                        <label
-                                            key={product.id}
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '8px',
-                                                padding: '8px',
-                                                cursor: 'pointer',
-                                                borderBottom: '1px solid #f0f0f0'
-                                            }}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.productIds.includes(String(product.id))}
-                                                onChange={(e) => {
-                                                    const productId = String(product.id);
-                                                    if (e.target.checked) {
-                                                        setFormData(prev => ({
-                                                            ...prev,
-                                                            productIds: [...prev.productIds, productId]
-                                                        }));
-                                                    } else {
-                                                        setFormData(prev => ({
-                                                            ...prev,
-                                                            productIds: prev.productIds.filter(id => id !== productId)
-                                                        }));
-                                                    }
-                                                }}
-                                            />
-                                            {product.images?.[0]?.src && (
-                                                <img
-                                                    src={product.images[0].src}
-                                                    alt={product.title}
-                                                    style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
-                                                />
-                                            )}
-                                            <span>{product.title}</span>
-                                        </label>
-                                    ))
-                                )}
-                            </div>
-                            {formData.productIds.length > 0 && (
-                                <Text as="p" color="subdued" style={{ marginTop: '8px' }}>
-                                    {formData.productIds.length} product(s) selected
-                                </Text>
+                            <Text as="p" tone="subdued" variant="bodySm">
+                                Choose which products customers can review in this campaign
+                            </Text>
+
+                            {products.length === 0 ? (
+                                <Box
+                                    background="bg-surface-secondary"
+                                    padding="400"
+                                    borderRadius="200"
+                                >
+                                    <Text as="p" tone="subdued" alignment="center">
+                                        No products available. Please add products to your store first.
+                                    </Text>
+                                </Box>
+                            ) : (
+                                <>
+                                    <Box
+                                        borderColor="border"
+                                        borderWidth="025"
+                                        borderRadius="200"
+                                        maxHeight="300px"
+                                        overflowY="scroll"
+                                    >
+                                        <BlockStack gap="0">
+                                            {products.map((product, index) => (
+                                                <Box
+                                                    key={product.id}
+                                                    borderBlockStartWidth={index > 0 ? "025" : undefined}
+                                                    borderColor="border"
+                                                >
+                                                    <Box padding="300">
+                                                        <InlineStack gap="300" blockAlign="center" wrap={false}>
+                                                            <Checkbox
+                                                                checked={formData.productIds.includes(String(product.id))}
+                                                                onChange={() => handleProductToggle(String(product.id))}
+                                                            />
+                                                            {product.images?.[0]?.src && (
+                                                                <Thumbnail
+                                                                    source={product.images[0].src}
+                                                                    alt={product.title}
+                                                                    size="small"
+                                                                />
+                                                            )}
+                                                            <Text as="span" variant="bodyMd">
+                                                                {product.title}
+                                                            </Text>
+                                                        </InlineStack>
+                                                    </Box>
+                                                </Box>
+                                            ))}
+                                        </BlockStack>
+                                    </Box>
+                                    {formData.productIds.length > 0 && (
+                                        <Text as="p" tone="subdued" variant="bodySm">
+                                            {formData.productIds.length} product{formData.productIds.length !== 1 ? 's' : ''} selected
+                                        </Text>
+                                    )}
+                                </>
                             )}
-                        </div>
-                    </FormLayout>
+                        </BlockStack>
+                    </BlockStack>
                 </Modal.Section>
             </Modal>
         </Page>
